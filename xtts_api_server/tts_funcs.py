@@ -722,13 +722,22 @@ class TTSWrapper:
             language_code = language.lower()
 
             accent = language if accent is None else accent
-
+            
+            speaker_json_path = None
             # Adjusted path for JSON file in the latent speaker folder to include language
-            speaker_json_directory = Path(self.latent_speaker_folder) / language_code
-            speaker_json_path = speaker_json_directory / f"{speaker_name}.json"
+            for latent_speaker_folder in self.latent_speaker_folders:
+                proposed_path = os.path.join(latent_speaker_folder, language_code, f"{speaker_name}.json")
+                logger.info(f"Checking for speaker JSON at {proposed_path}")
+                if os.path.exists(proposed_path):
+                    speaker_json_path = proposed_path
+                    break
+            if speaker_json_path is None:
+                raise ValueError(f"Speaker JSON file not found for {speaker_name} for language '{language_code}'.")
+            else:
+                logger.info(f"Speaker JSON found at {speaker_json_path}")
 
             # Check if the speaker's JSON exists in the latent speaker folder within the specific language subdirectory
-            if speaker_json_path.exists():
+            if os.path.exists(speaker_json_path):
                 # Load latent directly without needing a .wav file
                 speaker_wav = "out.wav"
                 logger.info(f"Using latents from JSON for {speaker_name} in {language_code}")
