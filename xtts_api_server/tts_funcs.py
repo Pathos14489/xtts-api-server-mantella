@@ -62,7 +62,7 @@ official_model_list_v2 = ["2.0.0","2.0.1","2.0.2","2.0.3"]
 reversed_supported_languages = {name: code for code, name in supported_languages.items()}
 
 class TTSWrapper:
-    def __init__(self,output_folder = "./output", speaker_folder="./speakers",latent_speaker_folders = ["./latent_speakers"],model_folder="./xtts_folder",lowvram = False,model_source = "local",model_version = "2.0.2",device = "cuda",deepspeed = False,enable_cache_results = True):
+    def __init__(self,output_folder = "./output", speaker_folder="./speakers",latent_speaker_folders = "./latent_speakers",model_folder="./xtts_folder",lowvram = False,model_source = "local",model_version = "2.0.2",device = "cuda",deepspeed = False,enable_cache_results = True):
         self.cuda = device # If the user has chosen what to use, we rewrite the value to the value we want to use
         self.device = 'cpu' if lowvram else (self.cuda if torch.cuda.is_available() else "cpu")
         self.lowvram = lowvram  # Store whether we want to run in low VRAM mode.
@@ -79,7 +79,11 @@ class TTSWrapper:
         self.speaker_folder = speaker_folder
         self.output_folder = output_folder
         self.model_folder = model_folder
-        self.latent_speaker_folders = latent_speaker_folders
+        latent_speaker_folders = latent_speaker_folders.split(',')
+        if type(latent_speaker_folders) is not list:
+            self.latent_speaker_folders = [latent_speaker_folders]
+        else:
+            self.latent_speaker_folders = latent_speaker_folders
 
         self.create_directories()
         check_tts_version()
@@ -515,26 +519,23 @@ class TTSWrapper:
     def get_speakers(self):
         """Gets available speakers, ensuring uniqueness across both folders."""
         speaker_info = {}
-        for lang_code in os.listdir(self.speaker_folder):
-            full_path = os.path.join(self.speaker_folder, lang_code)
-            if os.path.isdir(full_path):
-                speaker_path = os.path.join(self.speaker_folder, lang_code)
-                latent_speaker_path = os.path.join(self.latent_speaker_folder, lang_code)
+        for latent_speaker_folder in self.latent_speaker_folders:
+            for lang_code in os.listdir(self.speaker_folder):
+                full_path = os.path.join(self.speaker_folder, lang_code)
+                if os.path.isdir(full_path):
+                    speaker_path = os.path.join(self.speaker_folder, lang_code)
+                    latent_speaker_path = os.path.join(latent_speaker_folder, lang_code)
 
-                latent_speaker_names = [s['speaker_name'] for s in self._get_speakers_from_json(latent_speaker_path)]
-                speaker_names = [s['speaker_name'] for s in self._get_speakers_from_dir(speaker_path, existing_speakers=latent_speaker_names)]
+                    latent_speaker_names = [s['speaker_name'] for s in self._get_speakers_from_json(latent_speaker_path)]
+                    speaker_names = [s['speaker_name'] for s in self._get_speakers_from_dir(speaker_path, existing_speakers=latent_speaker_names)]
 
-                # Combine and ensure unique speaker names
-                combined_speakers = list(set(latent_speaker_names + speaker_names))
+                    # Combine and ensure unique speaker names
+                    combined_speakers = list(set(latent_speaker_names + speaker_names))
 
-                speaker_info[lang_code] = {
-                    'speakers': combined_speakers
-                }
+                    speaker_info[lang_code] = {
+                        'speakers': combined_speakers
+                    }
         return speaker_info
-
-        """ Gets available speakers """
-        speakers = [ s['speaker_name'] for s in self._get_speakers() ] 
-        return speakers
 
     def _get_speakers(self, path=None):
         """

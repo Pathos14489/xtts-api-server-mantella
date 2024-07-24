@@ -30,9 +30,7 @@ host_ip = "0.0.0.0" if args.listen else args.host
 os.environ['DEVICE'] = args.device  # Set environment variable for output folder.
 os.environ['OUTPUT'] = args.output  # Set environment variable for output folder.
 os.environ['SPEAKER'] = args.speaker_folder  # Set environment variable for speaker folder.
-os.environ['LATENT_SPEAKER'] = args.latent_speaker_folder.split(',')  # Set environment variable for speaker folder.
-if type(os.environ['LATENT_SPEAKER']) is not list:
-    os.environ['LATENT_SPEAKER'] = [os.environ['LATENT_SPEAKER']]
+os.environ['LATENT_SPEAKER'] = args.latent_speaker_folder  # Set environment variable for speaker folder.
 os.environ['MODEL'] = args.model_folder  # Set environment variable for model folder.
 os.environ['BASE_HOST'] = host_ip  # Set environment variable for base host."
 os.environ['BASE_PORT'] = str(args.port)  # Set environment variable for base port."
