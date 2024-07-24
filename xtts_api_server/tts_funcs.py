@@ -62,7 +62,7 @@ official_model_list_v2 = ["2.0.0","2.0.1","2.0.2","2.0.3"]
 reversed_supported_languages = {name: code for code, name in supported_languages.items()}
 
 class TTSWrapper:
-    def __init__(self,output_folder = "./output", speaker_folder="./speakers",latent_speaker_folder = "./latent_speakers",model_folder="./xtts_folder",lowvram = False,model_source = "local",model_version = "2.0.2",device = "cuda",deepspeed = False,enable_cache_results = True):
+    def __init__(self,output_folder = "./output", speaker_folder="./speakers",latent_speaker_folders = ["./latent_speakers"],model_folder="./xtts_folder",lowvram = False,model_source = "local",model_version = "2.0.2",device = "cuda",deepspeed = False,enable_cache_results = True):
         self.cuda = device # If the user has chosen what to use, we rewrite the value to the value we want to use
         self.device = 'cpu' if lowvram else (self.cuda if torch.cuda.is_available() else "cpu")
         self.lowvram = lowvram  # Store whether we want to run in low VRAM mode.
@@ -79,7 +79,7 @@ class TTSWrapper:
         self.speaker_folder = speaker_folder
         self.output_folder = output_folder
         self.model_folder = model_folder
-        self.latent_speaker_folder = latent_speaker_folder
+        self.latent_speaker_folders = latent_speaker_folders
 
         self.create_directories()
         check_tts_version()
@@ -289,10 +289,14 @@ class TTSWrapper:
                 existing_latents_count = 0
 
                 for speaker in speakers_list:
-                    speaker_key = f"{speaker['speaker_name'].lower()}_{language_code}"
                     # Check if the latent JSON already exists
-                    latent_json_path = os.path.join(self.latent_speaker_folder, language_code, f"{speaker['speaker_name']}.json")
-                    if os.path.exists(latent_json_path):
+                    latent_exists = False
+                    for latent_folder in self.latent_speaker_folders:
+                        latent_json_path = os.path.join(latent_folder, language_code, f"{speaker['speaker_name']}.json")
+                        if os.path.exists(latent_json_path):
+                            latent_exists = True
+                            break
+                    if latent_exists:
                         # Increment existing latents counter if the file exists
                         existing_latents_count += 1
                     else:
@@ -319,8 +323,8 @@ class TTSWrapper:
         
         # Ensure accessing the correct key in latents_cache
         if speaker_key in self.latents_cache:
-            # Create a subdirectory for the language if it doesn't exist
-            language_folder = os.path.join(self.latent_speaker_folder, language_code)
+            # Create a subdirectory for the language if it doesn't exist in the first latent_speaker_folder
+            language_folder = os.path.join(self.latent_speaker_folders[0], language_code)
             if not os.path.exists(language_folder):
                 os.makedirs(language_folder)
             
@@ -351,25 +355,26 @@ class TTSWrapper:
         total_latents_loaded = 0
 
         # Iterate over all language subdirectories in the latent speaker folder
-        for language_code in os.listdir(self.latent_speaker_folder):
-            language_path = os.path.join(self.latent_speaker_folder, language_code)
-            if os.path.isdir(language_path):
-                # Initialize counter for the current language
-                current_language_latents_count = 0
+        for latent_speaker_folder in self.latent_speaker_folders:
+            for language_code in os.listdir(latent_speaker_folder):
+                language_path = os.path.join(latent_speaker_folder, language_code)
+                if os.path.isdir(language_path):
+                    # Initialize counter for the current language
+                    current_language_latents_count = 0
 
-                # Load all json files within this language subfolder
-                for file_name in os.listdir(language_path):
-                    if file_name.endswith('.json'):
-                        speaker_name = file_name[:-5]  # Remove '.json' to get the speaker name
-                        speaker_key = f"{speaker_name}_{language_code}"
-                        file_path = os.path.join(language_path, file_name)
-                        gpt_cond_latent, speaker_embedding = self.load_latents_from_json(file_path)
-                        self.latents_cache[speaker_key] = (gpt_cond_latent, speaker_embedding)
-                        current_language_latents_count += 1
+                    # Load all json files within this language subfolder
+                    for file_name in os.listdir(language_path):
+                        if file_name.endswith('.json'):
+                            speaker_name = file_name[:-5]  # Remove '.json' to get the speaker name
+                            speaker_key = f"{speaker_name}_{language_code}"
+                            file_path = os.path.join(language_path, file_name)
+                            gpt_cond_latent, speaker_embedding = self.load_latents_from_json(file_path)
+                            self.latents_cache[speaker_key] = (gpt_cond_latent, speaker_embedding)
+                            current_language_latents_count += 1
 
-                # Log the count of loaded latents for the current language
-                logger.info(f"Loaded latents for {current_language_latents_count} speakers in '{language_code}' subfolder.")
-                total_latents_loaded += current_language_latents_count
+                    # Log the count of loaded latents for the current language
+                    logger.info(f"Loaded latents for {current_language_latents_count} speakers in '{language_code}' subfolder.")
+                    total_latents_loaded += current_language_latents_count
 
         # Optionally, log the total count of latents loaded across all languages
         logger.info(f"Total latents loaded across all languages: {total_latents_loaded}")
@@ -386,9 +391,9 @@ class TTSWrapper:
                 os.makedirs(absolute_path)
                 logger.info(f"Folder in the path {absolute_path} has been created")
 
-        # Creating language subdirectories within speaker_folder and latent_speaker_folder
+        # Creating language subdirectories within speaker_folder and the first latent_speaker_folder
         for language_code in supported_languages.keys():
-            for folder in [self.speaker_folder, self.latent_speaker_folder]:
+            for folder in [self.speaker_folder, self.latent_speaker_folders[0]]:
                 language_path = os.path.join(folder, language_code)
                 if not os.path.exists(language_path):
                     os.makedirs(language_path)
